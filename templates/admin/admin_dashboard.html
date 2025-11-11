@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+{% include "admin/admin_nav.html" %}
+<div class="container my-5">
+
+<h1 class="display-6 my-display my-4">Parking Lots</h1>
+    <div class="d-flex justify-content-center"><a class="btn my-btn-alt" href="{{ url_for('add_lot') }}"><i class="fas fa-plus"></i> Create</a></div>
+    {%include 'search_bar.html' with context %}
+
+<div class="row g-3">
+    {% if lots|length == 0 %}
+    <h3 class="my-display my-4 text-center">No Lots Found</h3>
+    {% else %}
+    {% for lot in lots %}
+    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+        <div class="lot-card h-100 p-3">
+            <div class="lot-details">
+            {% if lot.price_per_hr == 0 %}
+             <small class="d-block mb-3 price"><i class="fa-solid fa-indian-rupee-sign" style="color: #ffffe3;"></i> FREE </small>
+            {% else %}
+             <small class="d-block mb-3 price"><i class="fa-solid fa-indian-rupee-sign" style="color: #ffffe3;"></i>{{lot.price_per_hr}} /hr </small>
+            {% endif %}
+            {% if lot.is_shaded == true %}
+             <small class="d-block mb-3 shaded"><i class="fa-solid fa-umbrella" style="color: #ffffe3;"></i> Shaded </small>
+            {% else %}
+             <small class="d-block mb-3 open"><i class="fa-solid fa-cloud-sun-rain" style="color: #ffffe3;"></i> Open </small>
+            {% endif %}
+            </div>
+            
+             <h5 class="text-center">Parking Lot #{{lot.lot_id}}</h5>
+             <small class="d-block mb-3 loc border"><i class="fa-solid fa-location-dot" style="color: #ffffe3;"></i> {{lot.prime_loc}}</small>
+            <div class="text-center mb-2 lot-btn">
+                <a class="btn my-btn mx-1" href="{{ url_for('view_lot', lot_id = lot.lot_id) }}">View Details</a>
+                <a class="btn my-btn mx-1" href="{{ url_for('edit_lot', lot_id = lot.lot_id) }}"><i class="fas fa-pencil-alt"></i></a>
+                <a class="btn my-btn mx-1" href="{{ url_for('delete_lot', lot_id = lot.lot_id)}}"><i class="fas fa-trash"></i></a>
+            </div>
+            <div class="row row-cols-5 gx-1 gy-1">
+                {% for spot in lot.spots %}
+                <div class="col text-center">
+                    {% if spot.status == 'a' %}
+                        <a class="spot a d-block m-1" href="{{ url_for('spot_details', spot_id = spot.spot_id, lot_id = spot.lot_id)}}"><i class="fa-solid fa-square-parking" style="color: #ffffe3;"></i></a>
+                    {% else %}
+                        <a class="spot o d-block m-1" href="{{ url_for('spot_details', spot_id = spot.spot_id, lot_id = spot.lot_id)}}"><i class="fa-solid fa-square-parking" style="color: #ffffe3;"></i></a>
+                    {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+</div>
+
+{% endblock %}

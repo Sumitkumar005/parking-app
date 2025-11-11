@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="container my-5 my-container">
+<h1 class="display-6 my-display my-4">Hello, {{user.name}}!</h1>
+<form action="" method="POST" class="form">
+    <div class="form-floating mb-3 row">
+        <input type="email"readonly class="form-control my-input" id="floatingInputValue" name = "email" placeholder="name@example.com" value="{{user.email}}" required>
+        <label class="my-label" for="floatingInputValue">Email</label>
+    </div>
+    <div class="form-floating mb-3 row">
+        <input type="text" class="form-control my-input" id="floatingInputValue" name = "name" placeholder="name@example.com" value={{user.name}} required>
+        <label class="my-label" for="floatingInputValue">Name</label>
+    </div>
+    <div class="form-floating mb-3 row">
+        <input type="password" class="form-control my-input" id="password1" name="cpassword" placeholder="Password" required>
+        <label class="my-label" for="password1">Current Password</label>
+    </div>
+    <div class="form-floating mb-3 row">
+        <input type="password" class="form-control my-input" id="password1" name="password1" placeholder="Password" required>
+        <label class="my-label" for="password2">New Password</label>
+    </div>
+    <div class="form-floating mb-3 row">
+        <input type="password" class="form-control my-input" id="password2" name="password2" placeholder="Password" required>
+        <label class="my-label" for="password3">Confirm Password</label>
+    </div>
+    <button type="submit" class="btn my-btn my-2">Change Password</button>
+</form>
+
+<a href="{{url_for('logout')}}" class="btn my-btn">Logout</a>
+</div>
+{% endblock %}
