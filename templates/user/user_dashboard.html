@@ -21,13 +21,13 @@
   <tbody>
     {% for record in current %}
     <tr>
-      <td scope="row">{{record.r_id}}</td>
+      <td scope="row">{{record.reserve_id}}</td>
       <td>{{record.lot_id}}</td>
       <td>{{record.start_time.strftime('%d-%m-%Y %H:%M:%S')}}</td>
       <td>{{record.vehicle_num}}</td>
       <td>{{record.price_per_hr}}</td>
       <td>
-          <a class="btn my-btn" href="{{url_for('release_spot',lot_id = record.lot_id, spot_id = record.spot_id)}}">Release</a>
+          <a class="btn my-btn" href="{{url_for('release_spot', reserve_id = record.reserve_id)}}">Release</a>
       </td>
     </tr>
    {% endfor %}
@@ -63,7 +63,7 @@
              <h5 class="text-center">Parking Lot #{{lot.lot_id}}</h5>
              <small class="d-block mb-3 loc border"><i class="fa-solid fa-location-dot" style="color: #ffffe3;"></i> {{lot.prime_loc}}</small>
             <div class="text-center mb-2 lot-btn">
-                <a class="btn my-btn" href="{{url_for('book_lot', lot_id = lot.lot_id)}}">Book</a>
+                <a class="btn my-btn" href="{{url_for('book_spot', lot_id = lot.lot_id)}}">Book</a>
                 <a class="btn my-btn mx-1" href="{{ url_for('view_lot', lot_id = lot.lot_id) }}">View</a>
             </div>
             <div class="row row-cols-5 gx-1 gy-1">

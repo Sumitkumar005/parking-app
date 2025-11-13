@@ -1,4 +1,4 @@
-# 🚗 Vehicle Parking Management System - "LOT AND FOUND"
+# 🚗 NICMAR University Parking Management System
 
 A comprehensive Flask-based web application for managing parking lots, reservations, and payments across various industries.
 

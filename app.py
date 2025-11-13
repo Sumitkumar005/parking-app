@@ -115,7 +115,15 @@ def home():
     
     lots = Lot.query.all()
     current = Reserve.query.filter_by(user_id=user.user_id, is_ongoing=True).all()
-    return render_template("user/user_dashboard.html", lots=lots, current=current)
+    
+    # Add spots data to lots for template
+    lots_with_spots = []
+    for lot in lots:
+        spots = Spot.query.filter_by(lot_id=lot.lot_id).all()
+        lot.spots = spots  # Add spots to lot object
+        lots_with_spots.append(lot)
+    
+    return render_template("user/user_dashboard.html", lots=lots_with_spots, current=current)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -126,14 +134,22 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        
+        print(f"Login attempt - Email: {email}, Password: {password}")  # Debug
 
         if email and password:
             user = User.query.filter_by(email=email).first()
+            print(f"User found: {user}")  # Debug
             
             if user:
-                if check_password_hash(user.password, password):
+                print(f"User is_admin: {user.is_admin}")  # Debug
+                password_check = check_password_hash(user.password, password)
+                print(f"Password check result: {password_check}")  # Debug
+                
+                if password_check:
                     flash("Login successful", "success")
                     session['user_id'] = user.user_id
+                    print(f"Session set for user_id: {user.user_id}")  # Debug
                     return redirect(url_for('home'))
                 else:
                     flash("Incorrect password. Please try again", "error")
@@ -155,6 +171,8 @@ def sign_up():
         name = request.form.get('name')
         password1 = request.form.get('password1')
         password2 = request.form.get('password2')
+        
+        print(f"Registration attempt - Email: {email}, Name: {name}")  # Debug
 
         if not email or not name or not password1 or not password2:
             flash("Please fill all fields", "warning")
@@ -171,12 +189,19 @@ def sign_up():
         elif password1 != password2:
             flash("Passwords do not match", "error")
         else:
-            new_user = User(email=email, password=generate_password_hash(password1), name=name)
-            db.session.add(new_user)
-            db.session.commit()
-            session['user_id'] = new_user.user_id
-            flash("Welcome, " + new_user.name + "!", "success")
-            return redirect(url_for('home'))
+            try:
+                new_user = User(email=email, password=generate_password_hash(password1), name=name)
+                db.session.add(new_user)
+                db.session.commit()
+                session['user_id'] = new_user.user_id
+                print(f"User created successfully: {new_user.user_id}")  # Debug
+                flash("Welcome, " + new_user.name + "!", "success")
+                return redirect(url_for('home'))
+            except Exception as e:
+                db.session.rollback()
+                print(f"Registration error: {str(e)}")  # Debug
+                flash("Registration failed. Please try again.", "error")
+                return render_template("signup.html")
         
     return render_template("signup.html")
 
@@ -189,6 +214,78 @@ def logout():
         flash("You are already logged out", "warning")
     
     return redirect(url_for('login'))
+
+@app.route('/debug-admin')
+def debug_admin():
+    """Debug route to check admin user - REMOVE IN PRODUCTION"""
+    admin = User.query.filter_by(email='admin@nicmar.ac.in').first()
+    all_users = User.query.all()
+    
+    result = f"Total users in database: {len(all_users)}<br><br>"
+    
+    if admin:
+        result += f"Admin exists: Email={admin.email}, Name={admin.name}, is_admin={admin.is_admin}, user_id={admin.user_id}<br><br>"
+    else:
+        result += "Admin user not found!<br><br>"
+    
+    result += "All users:<br>"
+    for user in all_users:
+        result += f"- {user.email} (Admin: {user.is_admin})<br>"
+    
+    return result
+
+@app.route('/create-admin-now')
+def create_admin_now():
+    """Emergency admin creation route"""
+    try:
+        # Check if admin already exists
+        existing_admin = User.query.filter_by(email='admin@nicmar.ac.in').first()
+        if existing_admin:
+            return f"Admin already exists! Email: {existing_admin.email}, Admin: {existing_admin.is_admin}"
+        
+        # Create new admin
+        passhash = generate_password_hash('nicmar2024')
+        new_admin = User(email='admin@nicmar.ac.in', password=passhash, name='NICMAR Admin', is_admin=True)
+        db.session.add(new_admin)
+        db.session.commit()
+        
+        return "Admin user created successfully! Email: admin@nicmar.ac.in, Password: nicmar2024"
+    except Exception as e:
+        db.session.rollback()
+        return f"Error creating admin: {str(e)}"
+
+@app.route('/make-user-admin/<email>')
+def make_user_admin(email):
+    """Make any existing user an admin"""
+    try:
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.is_admin = True
+            db.session.commit()
+            return f"User {email} is now an admin!"
+        else:
+            return f"User {email} not found!"
+    except Exception as e:
+        db.session.rollback()
+        return f"Error: {str(e)}"
+
+@app.route('/debug-db')
+def debug_db():
+    """Debug route to check database status"""
+    try:
+        user_count = User.query.count()
+        lot_count = Lot.query.count()
+        spot_count = Spot.query.count()
+        
+        return f"""
+        Database Status:<br>
+        Users: {user_count}<br>
+        Lots: {lot_count}<br>
+        Spots: {spot_count}<br>
+        Database connection: OK
+        """
+    except Exception as e:
+        return f"Database error: {str(e)}"
 
 @app.route('/profile', methods=['GET', 'POST'])
 @auth_required
@@ -283,10 +380,173 @@ def add_lot():
 def view_lot(lot_id):
     lot = Lot.query.get(lot_id)
     if lot:
-        return render_template("view_lot.html", lot=lot)
+        # Get available spots count
+        total_spots = Spot.query.filter_by(lot_id=lot_id).count()
+        occupied_spots = Spot.query.filter_by(lot_id=lot_id, status='o').count()
+        available_spots = total_spots - occupied_spots
+        
+        return render_template("view_lot.html", lot=lot, available_spots=available_spots, total_spots=total_spots)
     else:
         flash("Lot not found", "error")
-        return redirect(url_for('admin'))
+        return redirect(url_for('home'))
+
+@app.route('/book-spot/<int:lot_id>', methods=['GET', 'POST'])
+@auth_required
+def book_spot(lot_id):
+    lot = Lot.query.get(lot_id)
+    if not lot:
+        flash("Parking lot not found", "error")
+        return redirect(url_for('home'))
+    
+    user = User.query.get(session['user_id'])
+    
+    # Check if user already has an ongoing reservation
+    existing_reservation = Reserve.query.filter_by(user_id=session['user_id'], is_ongoing=True).first()
+    if existing_reservation:
+        flash("You already have an active parking reservation", "warning")
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        vehicle_num = request.form.get('vno')  # Template uses 'vno' as field name
+        if not vehicle_num:
+            flash("Please enter vehicle number", "warning")
+            # Find an available spot to show in template
+            available_spot = Spot.query.filter_by(lot_id=lot_id, status='a').first()
+            return render_template("user/book_spot.html", lot=lot, user=user, spot=available_spot)
+        
+        # Find available spot
+        available_spot = Spot.query.filter_by(lot_id=lot_id, status='a').first()
+        if not available_spot:
+            flash("No parking spots available", "error")
+            return redirect(url_for('home'))
+        
+        # Create reservation
+        try:
+            reservation = Reserve(
+                user_id=session['user_id'],
+                lot_id=lot_id,
+                spot_id=available_spot.spot_id,
+                price_per_hr=lot.price_per_hr,
+                vehicle_num=vehicle_num,
+                start_time=datetime.now()
+            )
+            
+            # Mark spot as occupied
+            available_spot.status = 'o'
+            
+            db.session.add(reservation)
+            db.session.commit()
+            
+            flash(f"Parking spot booked successfully! Spot #{available_spot.spot_id}", "success")
+            return redirect(url_for('home'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash("Error booking parking spot. Please try again.", "error")
+            available_spot = Spot.query.filter_by(lot_id=lot_id, status='a').first()
+            return render_template("user/book_spot.html", lot=lot, user=user, spot=available_spot)
+    
+    # Check available spots
+    available_spot = Spot.query.filter_by(lot_id=lot_id, status='a').first()
+    if not available_spot:
+        flash("No parking spots available in this lot", "error")
+        return redirect(url_for('home'))
+    
+    return render_template("user/book_spot.html", lot=lot, user=user, spot=available_spot)
+
+@app.route('/release-spot/<int:reserve_id>')
+@auth_required
+def release_spot(reserve_id):
+    reservation = Reserve.query.get(reserve_id)
+    if not reservation or reservation.user_id != session['user_id']:
+        flash("Reservation not found", "error")
+        return redirect(url_for('home'))
+    
+    if not reservation.is_ongoing:
+        flash("This reservation is already completed", "warning")
+        return redirect(url_for('home'))
+    
+    try:
+        # Calculate duration and cost
+        end_time = datetime.now()
+        duration = end_time - reservation.start_time
+        hours = duration.total_seconds() / 3600
+        total_cost = hours * reservation.price_per_hr
+        
+        # Update reservation
+        reservation.end_time = end_time
+        reservation.is_ongoing = False
+        
+        # Free up the spot
+        spot = Spot.query.get(reservation.spot_id)
+        if spot:
+            spot.status = 'a'
+        
+        # Create payment record
+        payment = Payment(
+            reserve_id=reservation.reserve_id,
+            total_amt=total_cost,
+            payment_method='Cash',
+            transaction_date=end_time
+        )
+        
+        db.session.add(payment)
+        db.session.commit()
+        
+        flash(f"Parking released successfully! Total cost: ₹{total_cost:.2f}", "success")
+        
+    except Exception as e:
+        db.session.rollback()
+        flash("Error releasing parking spot. Please try again.", "error")
+    
+    return redirect(url_for('home'))
+
+@app.route('/user/summary')
+@auth_required
+def view_summary():
+    user = User.query.get(session['user_id'])
+    if not user:
+        return redirect(url_for('logout'))
+    
+    # Get user's reservation history
+    reservations = Reserve.query.filter_by(user_id=user.user_id).all()
+    
+    # Get payment history
+    payments = []
+    for reservation in reservations:
+        payment = Payment.query.filter_by(reserve_id=reservation.reserve_id).first()
+        if payment:
+            payments.append({
+                'reservation': reservation,
+                'payment': payment,
+                'lot': Lot.query.get(reservation.lot_id)
+            })
+    
+    return render_template("user/user_summary.html", reservations=reservations, payments=payments)
+
+@app.route('/user/history')
+@auth_required
+def transaction_history():
+    user = User.query.get(session['user_id'])
+    if not user:
+        return redirect(url_for('logout'))
+    
+    # Get all completed reservations with payments
+    completed_reservations = Reserve.query.filter_by(user_id=user.user_id, is_ongoing=False).all()
+    
+    history = []
+    for reservation in completed_reservations:
+        payment = Payment.query.filter_by(reserve_id=reservation.reserve_id).first()
+        lot = Lot.query.get(reservation.lot_id)
+        
+        if payment and lot:
+            history.append({
+                'reservation': reservation,
+                'payment': payment,
+                'lot': lot
+            })
+    
+    return render_template("user/transaction_history.html", history=history)
 
 @app.route('/admin/lot/<int:lot_id>/edit-lot', methods=['GET', 'POST'])
 @admin_required
@@ -352,13 +612,66 @@ def delete_lot(lot_id):
 # Initialize database
 with app.app_context():
     db.create_all()
-    # Create admin user if doesn't exist
-    admin = User.query.filter_by(is_admin=True).first()
-    if not admin:
-        passhash = generate_password_hash('admin')
-        admin = User(email='admin@lotandfound.com', password=passhash, name='Admin', is_admin=True)
-        db.session.add(admin)
+    
+    # Create admin user if doesn't exist - More robust approach
+    try:
+        admin = User.query.filter_by(email='admin@nicmar.ac.in').first()
+        if not admin:
+            print("Creating admin user...")
+            passhash = generate_password_hash('nicmar2024')
+            admin = User(email='admin@nicmar.ac.in', password=passhash, name='NICMAR Admin', is_admin=True)
+            db.session.add(admin)
+            db.session.commit()
+            print("Admin user created successfully!")
+        else:
+            print("Admin user already exists")
+            # Ensure admin flag is set
+            if not admin.is_admin:
+                admin.is_admin = True
+                db.session.commit()
+                print("Admin flag updated")
+    except Exception as e:
+        print(f"Error creating admin: {e}")
+        db.session.rollback()
+    
+    # Create sample parking lots if none exist
+    if Lot.query.count() == 0:
+        # NICMAR Main Campus Lot
+        sample_lot1 = Lot(
+            prime_loc='NICMAR Main Campus',
+            address='NICMAR University, Pune-Bangalore Highway',
+            pincode='411045',
+            price_per_hr=15.0,
+            max_spots=50,
+            is_shaded=True
+        )
+        db.session.add(sample_lot1)
+        db.session.flush()
+        
+        # Create spots for sample lot 1
+        for i in range(50):
+            spot = Spot(lot_id=sample_lot1.lot_id)
+            db.session.add(spot)
+        
+        # NICMAR Hostel Parking
+        sample_lot2 = Lot(
+            prime_loc='NICMAR Hostel Area',
+            address='NICMAR Hostel Complex, Pune',
+            pincode='411045',
+            price_per_hr=10.0,
+            max_spots=30,
+            is_shaded=False
+        )
+        db.session.add(sample_lot2)
+        db.session.flush()
+        
+        # Create spots for sample lot 2
+        for i in range(30):
+            spot = Spot(lot_id=sample_lot2.lot_id)
+            db.session.add(spot)
+            
         db.session.commit()
+        print("Sample parking lots created successfully!")
 
 if __name__ == "__main__":
     # Production vs Development configuration
